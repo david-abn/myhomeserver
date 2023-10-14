@@ -1,0 +1,188 @@
+version: "3.9"
+ 
+########################### NETWORKS
+networks:
+  default:
+    driver: bridge
+########################### EXTENSION FIELDS
+# Common environment values
+x-environment: &default-tz-puid-pgid
+  TZ: $TZ
+  PUID: $PUID
+  PGID: $PGID
+
+########################### SERVICES
+services:
+  # Portainer - WebUI for Containers
+  portainer:
+    container_name: portainer
+    image: portainer/portainer-ce:latest
+    restart: unless-stopped
+    networks:
+      - default
+    command: -H unix:///var/run/docker.sock 
+    ports:
+      - "9000:9000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro 
+      - $DOCKERDIR/appdata/portainer/data:/data 
+    environment:
+      - TZ=$TZ
+      
+    # Plex - Media Server
+  plex:
+    image: plexinc/pms-docker:public
+    container_name: plex
+    restart: unless-stopped
+    networks:
+      - default
+    ports:
+      - "32400:32400/tcp"
+      - "3005:3005/tcp"
+      - "8324:8324/tcp"
+      - "32469:32469/tcp"
+      - "1900:1900/udp"
+      - "32410:32410/udp"
+      - "32412:32412/udp"
+      - "32413:32413/udp"
+      - "32414:32414/udp"
+      # - "33400:33400" # If you use Plex Web Tools
+    volumes:
+      - $DOCKERDIR/appdata/plex:/config
+      - $DATADIR/media:/media
+      - /dev/shm:/transcode
+    environment:
+      TZ: $TZ
+      HOSTNAME: "dockerPlex"
+      PLEX_CLAIM: $PLEX_CLAIM
+      PLEX_UID: $PUID
+      PLEX_GID: $PGID
+      ADVERTISE_IP: http://$SERVER_IP:32400/
+      ALLOWED_NETWORKS: $LOCAL_NETWORK
+
+# Radarr - Movies management
+  radarr:
+    image: lscr.io/linuxserver/radarr:latest
+    restart: unless-stopped
+    container_name: radarr
+    networks: 
+      - default
+    ports:
+      - "7878:7878"
+    volumes:
+      - $DOCKERDIR/appdata/radarr:/config
+      - $DATADIR/downloads:/data/downloads
+      - $DATADIR/media:/data/media
+      - "/etc/localtime:/etc/localtime:ro"
+    environment:
+      <<: *default-tz-puid-pgid
+
+  # Sonarr - TV Shows management
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    restart: unless-stopped
+    container_name: sonarr
+    networks: 
+      - default
+    ports:
+      - "8989:8989"
+    volumes:
+      - $DOCKERDIR/appdata/sonarr:/config
+      - $DATADIR/downloads:/data/downloads
+      - $DATADIR/media:/data/media
+      - "/etc/localtime:/etc/localtime:ro"
+    environment:
+      <<: *default-tz-puid-pgid
+
+  # Prowlarr - Indexer Proxy
+  prowlarr:
+    image: ghcr.io/linuxserver/prowlarr:develop
+    restart: unless-stopped
+    container_name: prowlarr
+    networks:
+      - default
+    ports:
+      - "9696:9696"
+    volumes:
+      - $DOCKERDIR/appdata/prowlarr:/config
+      - "/etc/localtime:/etc/localtime:ro"
+    environment:
+      <<: *default-tz-puid-pgid
+
+  homer:
+    image: b4bz/homer
+    #To build from source, comment previous line and uncomment below
+    #build: .
+    container_name: homer
+    volumes:
+      - $DOCKERDIR/appdata/homer:/www/assets
+    ports:
+      - 8080:8080
+    environment:
+      <<: *default-tz-puid-pgid  
+
+  pihole:
+    container_name: pihole
+    image: pihole/pihole:latest
+    # For DHCP it is recommended to remove these ports and instead add: network_mode: "host"
+    ports:
+      - "53:53/tcp"
+      - "53:53/udp"
+      - "67:67/udp" # Only required if you are using Pi-hole as your DHCP server
+      - "80:80/tcp"
+    environment:
+      <<: *default-tz-puid-pgid
+      # WEBPASSWORD: 'set a secure password here or it will be random'
+    # Volumes store your data between container upgrades
+    volumes:
+      - './etc-pihole:/etc/pihole'
+      - './etc-dnsmasq.d:/etc/dnsmasq.d'
+    cap_add:
+      - NET_ADMIN # Required if you are using Pi-hole as your DHCP server, else not needed
+    restart: unless-stopped
+
+# TransmissionBT - Torrent Downloader
+  transmission-vpn:
+    image: haugene/transmission-openvpn:latest
+    container_name: transmission-vpn
+    restart: unless-stopped
+    networks:
+      - default
+    ports:
+      - "9091:9091"
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - $DOCKERDIR/appdata/transmission-vpn/data:/data
+      - $DOCKERDIR/appdata/transmission-vpn/config:/config
+      - $DATADIR/downloads:/data/downloads
+    environment:
+      <<: *default-tz-puid-pgid
+      OPENVPN_PROVIDER: NORDVPN
+      OPENVPN_USERNAME: $NORD_USER
+      OPENVPN_PASSWORD: $NORD_PASS
+      LOCAL_NETWORK: "$LOCAL_NETWORK"
+      UMASK_SET: 2
+      TRANSMISSION_RPC_AUTHENTICATION_REQUIRED: "true"
+      TRANSMISSION_RPC_HOST_WHITELIST: "127.0.0.1,$SERVER_IP"
+      TRANSMISSION_RPC_PASSWORD: $TRANSMISSION_RPC_PASSWORD
+      TRANSMISSION_RPC_USERNAME: $TRANSMISSION_RPC_USERNAME
+      TRANSMISSION_UMASK: 002
+      TRANSMISSION_RATIO_LIMIT: 1.00
+      TRANSMISSION_RATIO_LIMIT_ENABLED: "true"
+      TRANSMISSION_ALT_SPEED_DOWN: 40000
+      TRANSMISSION_ALT_SPEED_ENABLED: "false"
+      TRANSMISSION_ALT_SPEED_UP: 250
+      TRANSMISSION_SPEED_LIMIT_DOWN: 80000
+      TRANSMISSION_SPEED_LIMIT_DOWN_ENABLED: "true"
+      TRANSMISSION_SPEED_LIMIT_UP: 500
+      TRANSMISSION_SPEED_LIMIT_UP_ENABLED: "true"
+      TRANSMISSION_INCOMPLETE_DIR: /data/downloads/torrents/incomplete
+      TRANSMISSION_INCOMPLETE_DIR_ENABLED: "true"
+      TRANSMISSION_WATCH_DIR: /data/downloads
+      TRANSMISSION_WATCH_DIR_ENABLED: "true"
+      TRANSMISSION_DOWNLOAD_DIR: /data/downloads
+      LOG_TO_STDOUT: "true"
