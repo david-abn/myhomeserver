@@ -60,40 +60,6 @@ services:
       ADVERTISE_IP: http://$SERVER_IP:32400/
       ALLOWED_NETWORKS: $LOCAL_NETWORK
 
-# Radarr - Movies management
-  radarr:
-    image: lscr.io/linuxserver/radarr:latest
-    restart: unless-stopped
-    container_name: radarr
-    networks: 
-      - default
-    ports:
-      - "7878:7878"
-    volumes:
-      - $DOCKERDIR/appdata/radarr:/config
-      - $DATADIR/downloads:/data/downloads
-      - $DATADIR/media:/data/media
-      - "/etc/localtime:/etc/localtime:ro"
-    environment:
-      <<: *default-tz-puid-pgid
-
-  # Sonarr - TV Shows management
-  sonarr:
-    image: lscr.io/linuxserver/sonarr:latest
-    restart: unless-stopped
-    container_name: sonarr
-    networks: 
-      - default
-    ports:
-      - "8989:8989"
-    volumes:
-      - $DOCKERDIR/appdata/sonarr:/config
-      - $DATADIR/downloads:/data/downloads
-      - $DATADIR/media:/data/media
-      - "/etc/localtime:/etc/localtime:ro"
-    environment:
-      <<: *default-tz-puid-pgid
-
   # Prowlarr - Indexer Proxy
   prowlarr:
     image: ghcr.io/linuxserver/prowlarr:develop
@@ -124,22 +90,50 @@ services:
   pihole:
     container_name: pihole
     image: pihole/pihole:latest
-    # For DHCP it is recommended to remove these ports and instead add: network_mode: "host"
     ports:
       - "53:53/tcp"
       - "53:53/udp"
-      - "67:67/udp" # Only required if you are using Pi-hole as your DHCP server
       - "80:80/tcp"
     environment:
       <<: *default-tz-puid-pgid
-      # WEBPASSWORD: 'set a secure password here or it will be random'
-    # Volumes store your data between container upgrades
     volumes:
       - './etc-pihole:/etc/pihole'
       - './etc-dnsmasq.d:/etc/dnsmasq.d'
-    cap_add:
-      - NET_ADMIN # Required if you are using Pi-hole as your DHCP server, else not needed
     restart: unless-stopped
+
+# Radarr - Movies management
+  radarr:
+    image: lscr.io/linuxserver/radarr:latest
+    restart: unless-stopped
+    container_name: radarr
+    networks: 
+      - default
+    ports:
+      - "7878:7878"
+    volumes:
+      - $DOCKERDIR/appdata/radarr:/config
+      - $DATADIR/downloads:/data/downloads
+      - $DATADIR/media/movies:/movies
+      - "/etc/localtime:/etc/localtime:ro"
+    environment:
+      <<: *default-tz-puid-pgid
+
+  # Sonarr - TV Shows management
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    restart: unless-stopped
+    container_name: sonarr
+    networks: 
+      - default
+    ports:
+      - "8989:8989"
+    volumes:
+      - $DOCKERDIR/appdata/sonarr:/config
+      - $DATADIR/downloads:/data/downloads
+      - $DATADIR/media/tv:/tv
+      - "/etc/localtime:/etc/localtime:ro"
+    environment:
+      <<: *default-tz-puid-pgid
 
 # TransmissionBT - Torrent Downloader
   transmission-vpn:
@@ -182,7 +176,7 @@ services:
       TRANSMISSION_SPEED_LIMIT_UP_ENABLED: "true"
       TRANSMISSION_INCOMPLETE_DIR: /data/downloads/torrents/incomplete
       TRANSMISSION_INCOMPLETE_DIR_ENABLED: "true"
-      TRANSMISSION_WATCH_DIR: /data/downloads
+      TRANSMISSION_WATCH_DIR: /data/downloads/torrents
       TRANSMISSION_WATCH_DIR_ENABLED: "true"
-      TRANSMISSION_DOWNLOAD_DIR: /data/downloads
+      TRANSMISSION_DOWNLOAD_DIR: /data/downloads/torrents
       LOG_TO_STDOUT: "true"
